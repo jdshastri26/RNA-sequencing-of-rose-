@@ -1,0 +1,88 @@
+
+
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+# Install necessary packages
+BiocManager::install(c("DESeq2", "tximport", "clusterProfiler", "org.Hs.eg.db", "biomaRt", "AnnotationDbi", "GenomicFeatures"))
+
+# Load the libraries
+library(DESeq2)
+library(tximport)
+library(clusterProfiler)
+library(org.Hs.eg.db)  # Replace with appropriate organism database if available
+library(biomaRt)
+library(AnnotationDbi)
+library(GenomicFeatures)
+
+
+# Load the raw count data
+count_data <- read.csv("path/to/your/count_data.csv", row.names = 1)
+
+# Load sample metadata
+coldata <- read.csv("path/to/your/sample_metadata.csv", row.names = 1)
+
+# Ensure that column names in count_data match row names in coldata
+all(colnames(count_data) %in% rownames(coldata))
+all(colnames(count_data) == rownames(coldata))
+
+
+# Load TPM data
+tpm_data <- read.csv("path/to/your/tpm_data.csv", row.names = 1)
+
+# Convert TPM to counts if necessary (this step is usually more complex and may require additional information like gene lengths)
+# Here, I'm using a simplistic approach; adapt this to your specific situation
+gene_lengths <- read.csv("path/to/gene_lengths.csv", row.names = 1)  # Replace with actual gene lengths file
+count_data <- round(tpm_data * gene_lengths)
+
+
+# Create DESeq2 dataset object
+dds <- DESeqDataSetFromMatrix(countData = count_data, colData = coldata, design = ~ condition)
+
+# Filter out lowly expressed genes
+dds <- dds[rowSums(counts(dds)) > 1, ]
+
+
+# Extract significant genes based on adjusted p-value
+sig_genes <- rownames(res)[which(res$padj < 0.05)]
+
+# Convert gene symbols to Entrez IDs
+# Assuming the gene symbols are similar to human genes or using a general database
+entrez_ids <- bitr(sig_genes, fromType = "SYMBOL", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+
+# Extract Entrez IDs for enrichment analysis
+gene_entrez <- entrez_ids$ENTREZID
+# Extract significant genes based on adjusted p-value
+sig_genes <- rownames(res)[which(res$padj < 0.05)]
+
+# Convert gene symbols to Entrez IDs
+# Assuming the gene symbols are similar to human genes or using a general database
+entrez_ids <- bitr(sig_genes, fromType = "SYMBOL", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+
+# Extract Entrez IDs for enrichment analysis
+gene_entrez <- entrez_ids$ENTREZID
+
+
+
+
+# KEGG pathway enrichment analysis
+kegg_enrich <- enrichKEGG(gene = gene_entrez, organism = "hsa", pAdjustMethod = "BH")
+
+# Reactome pathway enrichment analysis
+reactome_enrich <- enrichPathway(gene = gene_entrez, organism = "human", pAdjustMethod = "BH")
+
+# Gene Ontology (GO) enrichment analysis (Biological Process)
+go_enrich <- enrichGO(gene = gene_entrez, OrgDb = org.Hs.eg.db, ont = "BP", pAdjustMethod = "BH")
+
+
+
+
+# Dotplot for KEGG enrichment
+dotplot(kegg_enrich) + ggtitle("KEGG Pathway Enrichment")
+
+# Dotplot for Reactome enrichment
+dotplot(reactome_enrich) + ggtitle("Reactome Pathway Enrichment")
+
+# Dotplot for GO enrichment
+dotplot(go_enrich) + ggtitle("GO Biological Process Enrichment")
+
